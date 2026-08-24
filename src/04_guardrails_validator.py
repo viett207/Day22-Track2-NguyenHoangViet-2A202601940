@@ -25,6 +25,34 @@ CÁC KHÁI NIỆM CHÍNH:
 
 import re
 import json
+import sys
+import os
+import argparse
+from contextlib import redirect_stdout
+from pathlib import Path
+
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+
+
+class TeeWriter:
+    """Ghi đồng thời ra console và file evidence."""
+
+    def __init__(self, console, log_file):
+        self.console = console
+        self.log_file = log_file
+
+    def write(self, text):
+        self.console.write(text)
+        return self.log_file.write(text)
+
+    def flush(self):
+        self.console.flush()
+        self.log_file.flush()
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 from guardrails import Guard
 from guardrails.validators import Validator, register_validator, PassResult, FailResult
@@ -51,7 +79,7 @@ class PIIDetector(Validator):
     # Regex patterns cho từng loại PII — đã được định nghĩa sẵn, bạn chỉ cần dùng
     PII_PATTERNS = {
         "EMAIL":       r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
-        "PHONE":       r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b",
+        "PHONE":       r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\w)",
         "SSN":         r"\b\d{3}-\d{2}-\d{4}\b",
         "CREDIT_CARD": r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
     }
@@ -75,20 +103,22 @@ class PIIDetector(Validator):
         # TODO: Lặp qua self.PII_PATTERNS.items()
         for pii_type, pattern in self.PII_PATTERNS.items():
             # TODO: Tìm tất cả matches
-            matches = ...   # re.findall(pattern, value)
+            matches = re.findall(pattern, value)
 
             for match in matches:
                 # TODO: Thay thế match bằng "[PII_TYPE_REDACTED]" trong redacted_text
-                redacted_text = ...   # redacted_text.replace(match, f"[{pii_type}_REDACTED]")
+                redacted_text = redacted_text.replace(match, f"[{pii_type}_REDACTED]")
                 found_pii.append((pii_type, match))
 
         if found_pii:
             print(f"  ⚠️  Đã redact {len(found_pii)} PII: {[p[0] for p in found_pii]}")
-            # TODO: Trả về PassResult với value_override=redacted_text
-            return ...
+            return FailResult(
+                error_message="Phát hiện dữ liệu nhận dạng cá nhân",
+                fix_value=redacted_text,
+            )
 
         # TODO: Không có PII → trả về PassResult với value gốc
-        return ...
+        return PassResult()
 
 
 # ── 2. JSON Formatter Validator ────────────────────────────────────────────
@@ -124,10 +154,10 @@ class JSONFormatter(Validator):
         text = text.strip()
 
         # TODO: Thay single quotes → double quotes
-        text = ...   # text.replace("'", '"')
+        text = text.replace("'", '"')
 
         # TODO: Xóa trailing commas (dùng re.sub với r',\s*([}\]])' → r'\1')
-        text = ...   # re.sub(r',\s*([}\]])', r'\1', text)
+        text = re.sub(r',\s*([}\]])', r'\1', text)
 
         return text
 
@@ -141,21 +171,34 @@ class JSONFormatter(Validator):
         """
         # TODO: Thử parse JSON trực tiếp
         try:
-            parsed = ...   # json.loads(value)
+            parsed = json.loads(value)
             # TODO: Trả về PassResult với json.dumps(parsed, indent=2)
-            return PassResult(value_override=...)
+            return PassResult()
         except json.JSONDecodeError:
             pass
 
         # TODO: Thử sửa JSON rồi parse lại
         try:
             repaired_text = self._repair(value)
-            parsed        = ...   # json.loads(repaired_text)
+            parsed        = json.loads(repaired_text)
             print(f"  🔧 JSON đã được sửa thành công")
             # TODO: Trả về PassResult với json.dumps(parsed, indent=2)
-            return PassResult(value_override=...)
+            return FailResult(
+                error_message="JSON cần được sửa định dạng",
+                fix_value=json.dumps(parsed, ensure_ascii=False, indent=2),
+            )
         except json.JSONDecodeError as e:
-            return FailResult(error_message=f"JSON không hợp lệ sau khi sửa: {e}")
+            fallback = json.dumps(
+                {
+                    "error": "Không thể phân tích JSON",
+                    "raw": value[:200],
+                },
+                ensure_ascii=False,
+            )
+            return FailResult(
+                error_message=f"JSON không hợp lệ sau khi sửa: {e}",
+                fix_value=fallback,
+            )
 
 
 # ── 3. Demo: PII Guard ─────────────────────────────────────────────────────
@@ -166,7 +209,7 @@ def demo_pii_guard():
 
     # TODO: Tạo Guard với PIIDetector, truyền on_fail=OnFailAction.FIX vào CONSTRUCTOR
     # Gợi ý: guard = Guard().use(PIIDetector(on_fail=OnFailAction.FIX))
-    guard = Guard().use(PIIDetector(...))
+    guard = Guard().use(PIIDetector(on_fail=OnFailAction.FIX))
 
     test_cases = [
         ("Email",        "Contact John at john.doe@example.com for details."),
@@ -179,7 +222,7 @@ def demo_pii_guard():
 
     for label, text in test_cases:
         # TODO: Gọi guard.validate(text) để lấy ValidationOutcome
-        result = ...
+        result = guard.validate(text)
 
         print(f"\n[{label}]")
         print(f"  Input:  {text}")
@@ -194,7 +237,7 @@ def demo_json_guard():
 
     # TODO: Tạo Guard với JSONFormatter, truyền on_fail=OnFailAction.FIX vào CONSTRUCTOR
     # Gợi ý: guard = Guard().use(JSONFormatter(on_fail=OnFailAction.FIX))
-    guard = Guard().use(JSONFormatter(...))
+    guard = Guard().use(JSONFormatter(on_fail=OnFailAction.FIX))
 
     test_cases = [
         ("Valid JSON",       '{"name": "Alice", "age": 30}'),
@@ -206,7 +249,7 @@ def demo_json_guard():
 
     for label, text in test_cases:
         # TODO: Gọi guard.validate(text) để lấy ValidationOutcome
-        result = ...
+        result = guard.validate(text)
 
         status = "✅ Pass" if result.validation_passed else "❌ Fail"
         print(f"\n[{label}] {status}")
@@ -215,16 +258,29 @@ def demo_json_guard():
 
 
 # ── 5. Main ────────────────────────────────────────────────────────────────
-def main():
+def main(demo: str = "all"):
     print("=" * 55)
     print("  Bước 4: Guardrails AI Validators")
     print("=" * 55)
 
-    demo_pii_guard()
-    demo_json_guard()
+    if demo in ("all", "pii"):
+        demo_pii_guard()
+    if demo in ("all", "json"):
+        demo_json_guard()
 
     print("\n✅ Bước 4 hoàn thành!")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Chạy demo Guardrails")
+    parser.add_argument("--demo", choices=["all", "pii", "json"], default="all")
+    parser.add_argument("--output", help="File log; vẫn đồng thời in ra console")
+    args = parser.parse_args()
+    if args.output:
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8") as log_file:
+            with redirect_stdout(TeeWriter(sys.stdout, log_file)):
+                main(args.demo)
+    else:
+        main(args.demo)

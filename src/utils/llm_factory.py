@@ -16,7 +16,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 
 
-def get_llm(provider: str = None, temperature: float = 0.0):
+def get_llm(
+    provider: str = None,
+    temperature: float = 0.0,
+    json_mode: bool = False,
+    model: str = None,
+):
     """
     Trả về BaseChatModel tương ứng với provider được chọn.
 
@@ -63,11 +68,15 @@ def get_llm(provider: str = None, temperature: float = 0.0):
 
     elif provider == "ollama":
         from langchain_ollama import ChatOllama
-        return ChatOllama(
-            model=config.OLLAMA_MODEL,
-            base_url=config.OLLAMA_BASE_URL,
-            temperature=temperature,
-        )
+        kwargs = {
+            "model": model or config.OLLAMA_MODEL,
+            "base_url": config.OLLAMA_BASE_URL,
+            "temperature": temperature,
+            "num_predict": 384,
+        }
+        if json_mode:
+            kwargs["format"] = "json"
+        return ChatOllama(**kwargs)
 
     elif provider == "openrouter":
         # OpenRouter dùng OpenAI-compatible API

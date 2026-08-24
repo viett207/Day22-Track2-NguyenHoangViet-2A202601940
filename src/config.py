@@ -5,8 +5,14 @@ Tải cấu hình từ file .env và thiết lập biến môi trường LangSmi
     config.py tự động set LANGCHAIN_* vào os.environ khi được import.
 """
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # Tải .env từ thư mục gốc của project (Lab/)
 _root = Path(__file__).parent.parent
@@ -14,8 +20,12 @@ load_dotenv(_root / ".env")
 
 # ── LangSmith — PHẢI set trước khi import LangChain ──────────────────────
 os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "true")
-os.environ["LANGCHAIN_API_KEY"]    = os.getenv("LANGCHAIN_API_KEY", "")
-os.environ["LANGCHAIN_PROJECT"]    = os.getenv("LANGCHAIN_PROJECT", "day22-lab")
+os.environ["LANGCHAIN_API_KEY"]    = os.getenv(
+    "LANGCHAIN_API_KEY", os.getenv("LANGSMITH_API_KEY", "")
+)
+os.environ["LANGCHAIN_PROJECT"]    = os.getenv(
+    "LANGCHAIN_PROJECT", os.getenv("LANGSMITH_PROJECT", "day22-lab")
+)
 os.environ["LANGCHAIN_ENDPOINT"]   = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
 
 # ── Provider mặc định ─────────────────────────────────────────────────────
@@ -30,8 +40,8 @@ OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-s
 
 # ── Google Gemini ─────────────────────────────────────────────────────────
 GOOGLE_API_KEY          = os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL            = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-GEMINI_EMBEDDING_MODEL  = os.getenv("GEMINI_EMBEDDING_MODEL", "models/embedding-001")
+GEMINI_MODEL            = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_EMBEDDING_MODEL  = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
 
 # ── Anthropic ─────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -40,6 +50,7 @@ ANTHROPIC_MODEL   = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 # ── Ollama (local, không cần API key) ────────────────────────────────────
 OLLAMA_BASE_URL         = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL            = os.getenv("OLLAMA_MODEL", "llama3.1")
+OLLAMA_EVAL_MODEL       = os.getenv("OLLAMA_EVAL_MODEL", "qwen2.5:1.5b")
 OLLAMA_EMBEDDING_MODEL  = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
 
 # ── OpenRouter ────────────────────────────────────────────────────────────
@@ -48,8 +59,8 @@ OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # ── LangSmith ─────────────────────────────────────────────────────────────
-LANGSMITH_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
-LANGSMITH_PROJECT = os.getenv("LANGCHAIN_PROJECT", "day22-lab")
+LANGSMITH_API_KEY = os.environ["LANGCHAIN_API_KEY"]
+LANGSMITH_PROJECT = os.environ["LANGCHAIN_PROJECT"]
 
 
 def validate() -> bool:
@@ -59,16 +70,24 @@ def validate() -> bool:
     """
     missing = []
 
-    if not LANGSMITH_API_KEY:
+    if not LANGSMITH_API_KEY or LANGSMITH_API_KEY.startswith("your_"):
         missing.append("LANGCHAIN_API_KEY (LangSmith)")
 
-    if PROVIDER == "openai" and not OPENAI_API_KEY:
+    if PROVIDER == "openai" and (
+        not OPENAI_API_KEY or OPENAI_API_KEY.startswith("your_")
+    ):
         missing.append("OPENAI_API_KEY")
-    elif PROVIDER == "gemini" and not GOOGLE_API_KEY:
+    elif PROVIDER == "gemini" and (
+        not GOOGLE_API_KEY or GOOGLE_API_KEY.startswith("your_")
+    ):
         missing.append("GOOGLE_API_KEY")
-    elif PROVIDER == "anthropic" and not ANTHROPIC_API_KEY:
+    elif PROVIDER == "anthropic" and (
+        not ANTHROPIC_API_KEY or ANTHROPIC_API_KEY.startswith("your_")
+    ):
         missing.append("ANTHROPIC_API_KEY")
-    elif PROVIDER == "openrouter" and not OPENROUTER_API_KEY:
+    elif PROVIDER == "openrouter" and (
+        not OPENROUTER_API_KEY or OPENROUTER_API_KEY.startswith("your_")
+    ):
         missing.append("OPENROUTER_API_KEY")
     # Ollama: không cần API key
 

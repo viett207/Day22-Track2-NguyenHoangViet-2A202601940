@@ -12,20 +12,23 @@ pip install -r requirements.txt
 ## requirements.txt
 
 ```
-langchain>=0.3.0
-langchain-core>=0.3.0
-langchain-openai>=0.3.0
-langchain-community>=0.3.0
-langchain-text-splitters>=0.3.0
+langchain>=1.3.0,<1.4.0
+langchain-core>=1.6.0,<1.7.0
+langchain-openai>=1.6.0,<1.7.0
+langchain-community>=0.4.0,<0.5.0
+langchain-text-splitters>=1.1.0,<1.2.0
 langsmith>=0.2.0
-openai>=1.0.0
+openai>=2.54.0,<3.0.0
 faiss-cpu>=1.7.0
 ragas>=0.4.0
-guardrails-ai>=0.5.0
+guardrails-ai>=0.11.0,<0.12.0
 python-dotenv>=1.0.0
 tiktoken>=0.5.0
 datasets>=2.0.0
 numpy>=1.25.0
+transformers>=4.57.0,<5.0.0
+torch>=2.13.0
+Pillow>=10.0.0
 ```
 
 ## Package Purposes
@@ -45,6 +48,9 @@ numpy>=1.25.0
 | `tiktoken` | Token counting for text splitters |
 | `datasets` | Required by RAGAS internally |
 | `numpy` | Averaging RAGAS score lists |
+| `transformers` | Load the local HHEM faithfulness evaluator |
+| `torch` | Run HHEM locally on CPU or GPU |
+| `Pillow` | Render the RAGAS score evidence image |
 
 ## Important Version Notes
 
@@ -53,7 +59,7 @@ numpy>=1.25.0
 - `result[metric_name]` returns a **list** of floats for multiple samples — use `numpy.mean()` to average
 - Pass `llm=` and `embeddings=` to the `evaluate()` function, not to metric constructors
 
-### Guardrails AI 0.10.x
+### Guardrails AI 0.11.x
 - `on_fail` parameter belongs in the **validator constructor**: `MyValidator(on_fail=OnFailAction.FIX)`
 - `Guard.use()` accepts validator **instances**, not classes
 - `Guard.validate(text)` is the main entry point

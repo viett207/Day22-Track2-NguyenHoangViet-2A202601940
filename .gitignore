@@ -26,5 +26,4 @@ env/
 # macOS
 .DS_Store
 
-# Lab outputs (không commit, chỉ nộp evidence/)
-data/ragas_report.json
+# Báo cáo RAGAS là deliverable bắt buộc và phải được commit.
